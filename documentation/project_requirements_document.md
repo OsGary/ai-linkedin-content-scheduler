@@ -1,117 +1,87 @@
-# Project Requirements Document: codeguide-starter
-
----
+# Project Requirements Document (PRD)
 
 ## 1. Project Overview
 
-The **codeguide-starter** project is a boilerplate web application that provides a ready-made foundation for any web project requiring secure user authentication and a post-login dashboard. It sets up the common building blocks—sign-up and sign-in pages, API routes to handle registration and login, and a simple dashboard interface driven by static data. By delivering this skeleton, it accelerates development time and ensures best practices are in place from day one.
+This project, **AI LinkedIn Content Scheduler**, is a web-based SaaS application that helps content creators, marketers, and professionals generate, manage, and automatically post LinkedIn content. Users can leverage an AI engine to draft ideas or full posts, organize them in a swimlane-style interface (idea → draft → scheduled → published), and schedule them to publish at specific times. The goal is to remove the manual overhead of brainstorming, editing, and remembering to post on LinkedIn, ensuring a steady, high-quality content pipeline.
 
-This starter kit is being built to solve the friction developers face when setting up repeated common tasks: credential handling, session management, page routing, and theming. Key objectives include: 1) delivering a fully working authentication flow (registration & login), 2) providing a gated dashboard area upon successful login, 3) establishing a clear, maintainable project structure using Next.js and TypeScript, and 4) demonstrating a clean theming approach with global and section-specific CSS. Success is measured by having an end-to-end login journey in under 200 lines of code and zero runtime type errors.
-
----
+We’re building this tool to streamline social media workflows, boost audience engagement, and maintain consistent branding with minimal effort. Success will be measured by user adoption, average number of posts scheduled per user, and reliability of the automated publishing pipeline (targeting 99.9% successful scheduled posts). Key objectives include secure multi-user support, intuitive drag-and-drop post management, seamless AI-powered generation, and reliable background scheduling.
 
 ## 2. In-Scope vs. Out-of-Scope
 
-### In-Scope (Version 1)
-- User registration (sign-up) form with validation
-- User login (sign-in) form with validation
-- Next.js API routes under `/api/auth/route.ts` handling:
-  - Credential validation
-  - Password hashing (e.g., bcrypt)
-  - Session creation or JWT issuance
-- Protected dashboard pages under `/dashboard`:
-  - `layout.tsx` wrapping dashboard content
-  - `page.tsx` rendering static data from `data.json`
-- Global application layout in `/app/layout.tsx`
-- Basic styling via `globals.css` and `dashboard/theme.css`
-- TypeScript strict mode enabled
+**In-Scope (Version 1.0)**
+- User Authentication & multi-tenancy (sign-up, sign-in, session management) via `better-auth`.  
+- LinkedIn OAuth 2.0 integration for connecting/disconnecting accounts.  
+- AI Content Generation endpoint (using OpenAI or similar) with user-specific tone preferences.  
+- Swimlane view for posts in four statuses: Idea, Draft, Scheduled, Published.  
+- Drag-and-drop reordering and status changes (via `dnd-kit`).  
+- Post Editor with a date/time picker for scheduling.  
+- Vercel Cron Job or equivalent background task to publish scheduled posts automatically.  
+- Responsive UI with dark mode, built on Next.js (App Router), Tailwind CSS, and shadcn/ui.  
+- PostgreSQL database managed by Drizzle ORM.  
+- Docker & Docker Compose for local development; Vercel for production deployment.  
 
-### Out-of-Scope (Later Phases)
-- Integration with a real database (PostgreSQL, MongoDB, etc.)
-- Advanced authentication flows (password reset, email verification, MFA)
-- Role-based access control (RBAC)
-- Multi-tenant or white-label theming
-- Unit, integration, or end-to-end testing suites
-- CI/CD pipeline and production deployment scripts
-
----
+**Out-of-Scope (Later Phases)**
+- Analytics dashboards (engagement metrics, click-through rates).  
+- Team or role-based collaboration features.  
+- Support for additional social networks (e.g., Twitter, Facebook).  
+- Advanced rich text or media editor (video, GIFs).  
+- Mobile-native applications (iOS/Android).  
+- Built-in content templates beyond basic AI prompts.  
 
 ## 3. User Flow
 
-A new visitor lands on the root URL and sees a welcome page with options to **Sign Up** or **Sign In**. If they choose Sign Up, they fill in their email, password, and hit “Create Account.” The form submits to `/api/auth/route.ts`, which hashes the password, creates a new user session or token, and redirects them to the dashboard. If any input is invalid, an inline error message explains the issue (e.g., “Password too short”).
+A new user lands on the homepage and is prompted to sign up with email/password. After confirming their email, they sign in and arrive at the Dashboard, which displays four columns (Idea, Draft, Scheduled, Published). A top navigation bar includes links to “Connect LinkedIn,” “Settings,” and “Log out.” The user clicks “Connect LinkedIn,” completes the OAuth flow, and returns to see their LinkedIn account listed under Connected Accounts.
 
-Once authenticated, the user is taken to the `/dashboard` route. Here they see a sidebar or header defined by `dashboard/layout.tsx`, and the main panel pulls in static data from `data.json`. They can log out (if that control is present), but otherwise their entire session is managed by server-side cookies or tokens. Returning users go directly to Sign In, submit credentials, and upon success they land back on `/dashboard`. Any unauthorized access to `/dashboard` redirects back to Sign In.
-
----
+Once connected, the user clicks a “New Idea” button to open a modal dialog. They enter a prompt or click “Generate with AI” to fetch post drafts. Generated drafts appear in the Draft column. The user can drag a draft into the Scheduled column, open it in the Post Editor, set a future date and time, and click “Save & Schedule.” Behind the scenes, the system saves the post status as `scheduled` with a timestamp. The Vercel Cron Job runs every few minutes, finds due posts, and publishes them to LinkedIn via the LinkedIn API. Published posts automatically move to the Published column.
 
 ## 4. Core Features
 
-- **Sign-Up Page (`/app/sign-up/page.tsx`)**: Form fields for email & password, client-side validation, POST to `/api/auth`.
-- **Sign-In Page (`/app/sign-in/page.tsx`)**: Form fields for email & password, client-side validation, POST to `/api/auth`.
-- **Authentication API (`/app/api/auth/route.ts`)**: Handles both registration and login based on HTTP method, integrates password hashing (bcrypt) and session or JWT logic.
-- **Global Layout (`/app/layout.tsx` + `globals.css`)**: Shared header, footer, and CSS resets across all pages.
-- **Dashboard Layout (`/app/dashboard/layout.tsx` + `dashboard/theme.css`)**: Sidebar or top nav for authenticated flows, section-specific styling.
-- **Dashboard Page (`/app/dashboard/page.tsx`)**: Reads `data.json`, renders it as cards or tables.
-- **Static Data Source (`/app/dashboard/data.json`)**: Example dataset to demo dynamic rendering.
-- **TypeScript Configuration**: `tsconfig.json` with strict mode and path aliases (if any).
-
----
+- **Authentication & Multi-Tenancy**: Secure sign-up, sign-in, and session management to isolate each user’s data.  
+- **LinkedIn OAuth Integration**: Connect/disconnect LinkedIn accounts; store OAuth tokens in `linkedinAccounts` table.  
+- **AI Content Generation**: Server-side endpoint that calls OpenAI (or chosen model) with user tone settings; returns draft variations.  
+- **Swimlane Post Management**: Four-column UI displaying posts by status; drag-and-drop between columns to update status.  
+- **Post Editor & Scheduler**: Modal or dedicated page for editing content; date/time picker to schedule posts.  
+- **Cron-Based Publishing**: Background job (Vercel Cron) to fetch and publish scheduled posts via LinkedIn API.  
+- **User Preferences**: Store custom system prompts or tone settings in `userPreferences` table.  
+- **Responsive & Themed UI**: Light/dark mode toggle; mobile-friendly design using Tailwind CSS and shadcn/ui.  
 
 ## 5. Tech Stack & Tools
 
-- **Framework**: Next.js (App Router) for file-based routing, SSR/SSG, and API routes.
-- **Language**: TypeScript for type safety.
-- **UI Library**: React 18 for component-based UI.
-- **Styling**: Plain CSS via `globals.css` (global reset) and `theme.css` (sectional styling). Can easily migrate to CSS Modules or Tailwind in the future.
-- **Backend**: Node.js runtime provided by Next.js API routes.
-- **Password Hashing**: bcrypt (npm package).
-- **Session/JWT**: NextAuth.js or custom JWT logic (to be decided in implementation).
-- **IDE & Dev Tools**: VS Code with ESLint, Prettier extensions. Optionally, Cursor.ai for AI-assisted coding.
-
----
+- **Frontend**: Next.js (App Router), React 19, TypeScript, Tailwind CSS v4, shadcn/ui components, `dnd-kit` for drag-and-drop.  
+- **Backend**: Next.js API routes, TypeScript, `better-auth` for authentication, Drizzle ORM for type-safe PostgreSQL integration.  
+- **Database**: PostgreSQL (hosted via Vercel Postgres or other cloud provider).  
+- **AI Model**: OpenAI GPT-4 (or equivalent) accessed via server-side client in `lib/openai.ts`.  
+- **LinkedIn API**: Custom client in `lib/linkedin.ts` handling OAuth and post publishing.  
+- **Background Jobs**: Vercel Cron Jobs triggering `/api/cron/publish`.  
+- **Development Tools**: Docker & Docker Compose for local services; VS Code with Cursor/Windsurf extensions (optional).  
+- **Deployment**: Vercel for hosting frontend, backend, environment variables, and cron.  
 
 ## 6. Non-Functional Requirements
 
-- **Performance**: Initial page load under 200 ms on a standard broadband connection. API responses under 300 ms.
-- **Security**:
-  - HTTPS only in production.
-  - Proper CORS, CSRF protection for API routes.
-  - Secure password storage (bcrypt with salt).
-  - No credentials or secrets checked into version control.
-- **Scalability**: Structure must support adding database integration, caching layers, and advanced auth flows without rewiring core app.
-- **Usability**: Forms should give real-time feedback on invalid input. Layout must be responsive (mobile > 320 px).
-- **Maintainability**: Code must adhere to TypeScript strict mode. Linting & formatting enforced by ESLint/Prettier.
-
----
+- **Performance**: Page load time ≤ 2s on 3G; AI generation endpoint ≤ 1.5s response time.  
+- **Reliability**: 99.9% uptime for scheduled publishing; retries on transient failures.  
+- **Security**: HTTPS only; OWASP Top 10 mitigations; environment variables for secrets; encrypt tokens at rest.  
+- **Compliance**: GDPR-ready (data storage in EU, user data deletion on request).  
+- **Usability**: WCAG AA accessibility standards; intuitive drag-and-drop; clear toast notifications on success/failure.  
 
 ## 7. Constraints & Assumptions
 
-- **No Database**: Dashboard uses only `data.json`; real database integration is deferred.
-- **Node Version**: Requires Node.js >= 14.
-- **Next.js Version**: Built on Next.js 13+ App Router.
-- **Authentication**: Assumes availability of bcrypt or NextAuth.js at implementation time.
-- **Hosting**: Targets serverless or Node.js-capable hosting (e.g., Vercel, Netlify).
-- **Browser Support**: Modern evergreen browsers; no IE11 support required.
+- **Constraints**:
+  - Requires GPT-4 API availability and API key quotas.  
+  - Tied to Vercel Cron Job frequency limits (minimum interval ~5 minutes).  
+  - LinkedIn API rate limits for publishing (approx. 100 posts/day per account).  
 
----
+- **Assumptions**:
+  - Users have or can create a LinkedIn account for OAuth.  
+  - Vercel environment will provide SSL/TLS and environment variable management.  
+  - AI model latency and costs are within project budget.  
 
 ## 8. Known Issues & Potential Pitfalls
 
-- **Static Data Limitation**: `data.json` is only for demo. A real API or database will be needed to avoid stale data.
-  *Mitigation*: Define a clear interface for data fetching so swapping to a live endpoint is trivial.
+- **Token Expiry & Refresh**: LinkedIn tokens may expire; implement refresh token flow and error handling.  
+- **API Rate Limits**: Hitting LinkedIn or OpenAI limits; add exponential backoff and user warnings.  
+- **Cron Job Drift**: Vercel Cron may not fire exactly on schedule; include timestamp checks and batch publishing.  
+- **Network Failures**: Handle transient HTTP errors for AI and LinkedIn calls with retries.  
+- **Drag-and-Drop Edge Cases**: Ensure mobile support and fallback UI for unsupported browsers.  
 
-- **Global CSS Conflicts**: Using global styles can lead to unintended overrides.
-  *Mitigation*: Plan to migrate to CSS Modules or utility-first CSS in Phase 2.
-
-- **API Route Ambiguity**: Single `/api/auth/route.ts` handling both sign-up and sign-in could get complex.
-  *Mitigation*: Clearly branch on HTTP method (`POST /register` vs. `POST /login`) or split into separate files.
-
-- **Lack of Testing**: No test suite means regressions can slip in.
-  *Mitigation*: Build a minimal Jest + React Testing Library setup in an early iteration.
-
-- **Error Handling Gaps**: Client and server must handle edge cases (network failures, malformed input).
-  *Mitigation*: Define a standard error response schema and show user-friendly messages.
-
----
-
-This PRD should serve as the single source of truth for the AI model or any developer generating the next set of technical documents: Tech Stack Doc, Frontend Guidelines, Backend Structure, App Flow, File Structure, and IDE Rules. It contains all functional and non-functional requirements with no ambiguity, enabling seamless downstream development.
+Mitigation strategies include robust try/catch with logging, retry queues, and user-facing alerts for manual retry if automated publishing fails.  

@@ -1,90 +1,99 @@
 # Tech Stack Document
 
-This document explains the key technologies chosen for the **codeguide-starter** project. It’s written in everyday language so anyone—technical or not—can understand why each tool was picked and how it supports the application.
+This document explains the technology choices behind the **ai-linkedin-content-scheduler** project in simple, everyday language. Each section covers why we picked certain tools and how they help build a reliable, user-friendly application.
 
 ## 1. Frontend Technologies
-The frontend is everything the user sees and interacts with. For this project, we’ve used:
+
+We want the app to look great, load quickly, and be easy to extend. These are the main tools we use on the user interface side:
 
 - **Next.js (App Router)**
-  - A React framework that makes page routing, server-side rendering, and API routes very simple.
-  - Enhances user experience by pre-rendering pages on the server or at build time, leading to faster initial load.
-- **React 18**
-  - The underlying library for building user interfaces with reusable components.
-  - Provides a smooth, interactive experience thanks to its virtual DOM and modern hooks.
+  - A modern framework built on React. It helps us handle page navigation, server-side rendering, and data fetching in a clean, organized way.
+- **React 19**
+  - The core library for building interactive user interfaces. It lets us break our UI into reusable components.
 - **TypeScript**
-  - A superset of JavaScript that adds types (labels for data).
-  - Helps catch errors early during development and makes the code easier to maintain.
-- **CSS (globals.css & theme.css)**
-  - **globals.css** applies base styles (fonts, colors, resets) across the entire app.
-  - **dashboard/theme.css** defines the look and feel specific to the dashboard area.
-  - This separation keeps styles organized and avoids accidental style conflicts.
+  - A version of JavaScript that adds strict typing. This catches many common mistakes early and makes our code easier to understand.
+- **Tailwind CSS v4**
+  - A utility-first styling tool. Instead of writing custom CSS, we apply small, reusable classes to style elements rapidly and consistently.
+- **shadcn/ui**
+  - A collection of ready-made UI components—cards, dialogs, calendars, forms—that match Tailwind styles. This speeds up design and ensures a polished look.
+- **dnd-kit**
+  - A lightweight library for drag-and-drop interactions. We use it to let users move posts between swimlane columns (idea, draft, scheduled, published).
 
-By combining these tools, we have a clear structure (Next.js folders for pages and layouts), safer code (TypeScript), and flexible styling with vanilla CSS.
+Together, these tools ensure our front end is fast, responsive, and easy to maintain.
 
 ## 2. Backend Technologies
-The backend handles data, user accounts, and the logic behind the scenes. Our choices here are:
+
+On the server side, we need secure user management, data storage, and API endpoints to power our features:
 
 - **Next.js API Routes**
-  - Allows us to write server-side code (`route.ts` files) alongside our frontend in the same project.
-  - Runs on Node.js, so we can handle requests like sign-up, sign-in, and data fetching in one place.
-- **Node.js Runtime**
-  - The JavaScript environment on the server that executes our API routes.
-- **bcrypt** (npm package)
-  - A library for hashing passwords securely before storing them.
-  - Ensures that even if someone got access to our data, raw passwords aren’t visible.
-- **(Optional) NextAuth.js or JWT**
-  - While this starter kit shows a custom authentication flow, it can easily integrate services like NextAuth.js for email-based login or JWT (JSON Web Tokens) for stateless sessions.
+  - Built-in server endpoints where we implement business logic (e.g., creating posts, calling AI or LinkedIn services).
+- **better-auth**
+  - A simple yet robust authentication library. It handles sign-up, sign-in, session management, and keeps each user’s data private.
+- **Drizzle ORM**
+  - A type-safe layer over SQL. We define our data models in code (posts, schedules, LinkedIn accounts, user preferences), and Drizzle generates SQL queries for us.
+- **PostgreSQL**
+  - A powerful relational database. It stores user profiles, post content, scheduling details, and OAuth tokens in a structured way.
+- **TypeScript** (on the server)
+  - Ensures our API code and database models stay in sync, reducing runtime errors.
 
-These components work together to receive user credentials, verify or store them securely, manage sessions or tokens, and deliver protected data back to the frontend.
+These components work together to authenticate users, persist data reliably, and expose clean, well-typed APIs for our front end.
 
 ## 3. Infrastructure and Deployment
-Infrastructure covers where and how we host the app, as well as how changes get delivered:
+
+To make sure our app runs smoothly in development and production, we use:
 
 - **Git & GitHub**
-  - Version control system (Git) and remote hosting (GitHub) keep track of all code changes and allow team collaboration.
-- **Vercel (or Netlify)**
-  - A popular hosting service optimized for Next.js, with one-click deployments and global content delivery.
-  - Automatically rebuilds and deploys the site whenever code is pushed to the main branch.
-- **GitHub Actions (CI/CD)**
-  - Automates tasks like linting (ESLint), formatting (Prettier), and running any tests you add.
-  - Ensures that only clean, tested code goes live.
+  - Version control and code collaboration hub. Every code change is tracked, reviewed, and stored safely.
+- **Docker & Docker Compose**
+  - Containerization tools that let us spin up a local database and server identical to production. This avoids the “it works on my machine” problem.
+- **Vercel**
+  - A cloud platform specialized for Next.js. It handles builds, deployments, and global CDN distribution with zero configuration.
+- **Vercel Cron Jobs**
+  - Built-in scheduler for background tasks. We use this to trigger an endpoint every few minutes that checks for and publishes scheduled LinkedIn posts.
+- **Environment Variables**
+  - Secret keys (AI API keys, LinkedIn OAuth credentials) are stored outside the codebase. In development, they live in `.env.local`; in production, they’re managed securely in Vercel.
 
-Together, these tools provide a reliable, scalable setup where every code change is tested and deployed quickly, with minimal manual work.
+This setup gives us continuous integration (CI), continuous deployment (CD), and a production-like environment locally, all with minimal overhead.
 
 ## 4. Third-Party Integrations
-While this starter kit is minimal by design, it already includes or can easily add:
 
-- **bcrypt**
-  - For secure password hashing (included as an npm dependency).
-- **NextAuth.js** (optional)
-  - A full-featured authentication library supporting email/password, OAuth, and more.
-- **Sentry or LogRocket** (optional)
-  - For real-time error tracking and performance monitoring in production.
+Our app connects to a few external services to deliver its AI and LinkedIn features:
 
-These integrations help extend the app’s capabilities without building every feature from scratch.
+- **OpenAI API (or similar)**
+  - Generates post drafts and variations based on user prompts and preferred tone of voice. We call it via a custom client in `lib/openai.ts`.
+- **LinkedIn API (OAuth 2.0)**
+  - Allows users to sign in with LinkedIn and publish scheduled posts directly to their feed. We manage tokens securely and refresh them as needed.
+- **Vercel Cron Jobs**
+  - Although provided by our hosting platform, this counts as an integration. It automates the publishing workflow without extra servers.
+
+These integrations expand our app’s capabilities without reinventing complex AI or social-media workflows from scratch.
 
 ## 5. Security and Performance Considerations
-We’ve baked in several measures to keep users safe and the app running smoothly:
 
-Security:
-- Passwords are never stored in plain text—bcrypt hashes them with a random salt.
-- API routes can implement CSRF protection and input validation to block malicious requests.
-- Session tokens or cookies are marked secure and HttpOnly to prevent theft via JavaScript.
+We built security and speed into our stack from day one:
 
-Performance:
-- Server-side rendering (SSR) and static site generation (SSG) in Next.js deliver pages faster.
-- Code splitting and lazy-loaded components ensure users only download what they need.
-- Global CSS and theme files are small and cached by the browser for quick repeat visits.
+- **Authentication & Session Security**
+  - `better-auth` ensures passwords and sessions are handled safely. OAuth tokens are encrypted in our database.
+- **Environment Isolation**
+  - Sensitive credentials never appear in code. They’re managed via environment variables and encrypted at rest.
+- **Type Safety**
+  - TypeScript and Drizzle ORM catch many issues before the code runs.
+- **Error Handling**
+  - API routes contain try/catch blocks. If a LinkedIn or AI call fails, we show clear messages rather than crashing.
+- **Server-Side Rendering & Code Splitting**
+  - Next.js automatically optimizes page loading by sending only the code and data each view needs.
+- **Background Processing**
+  - Offloading scheduled posts to a cron-driven API keeps the user interface snappy and avoids long-running requests.
 
-These strategies work together to give users a fast, secure experience every time.
+Together, these measures protect user data and keep interactions smooth.
 
 ## 6. Conclusion and Overall Tech Stack Summary
-In building **codeguide-starter**, we chose technologies that:
 
-- Align with modern web standards (Next.js, React, TypeScript).
-- Provide a clear, file-based project structure for rapid onboarding.
-- Offer built-in support for server-side rendering, API routes, and static assets.
-- Emphasize security through password hashing, session management, and safe defaults.
-- Enable easy scaling and future enhancements via modular code and optional integrations.
+In this project, we chose a modern, full-stack JavaScript approach with an emphasis on reliability, developer productivity, and a great user experience:
 
-This stack strikes a balance between simplicity for newcomers and flexibility for experienced teams. It accelerates development of a secure authentication flow and a polished dashboard, while leaving room to plug in databases, test suites, and advanced features as the project grows.
+- **Frontend**: Next.js + React + TypeScript for structure; Tailwind CSS + shadcn/ui for styling; dnd-kit for interactivity.
+- **Backend**: Next.js API Routes + better-auth for security; Drizzle ORM + PostgreSQL for data integrity and querying.
+- **Infrastructure**: Git/GitHub for version control; Docker for local parity; Vercel for zero-config deployment and scheduled jobs.
+- **Integrations**: OpenAI for AI content; LinkedIn API for publishing; Vercel Cron Jobs for automation.
+
+This combination aligns perfectly with our goals: a scaffolded, type-safe boilerplate that handles authentication, data storage, and core UI elements out of the box—so you can focus on the unique AI-powered content scheduling features that set this project apart.
