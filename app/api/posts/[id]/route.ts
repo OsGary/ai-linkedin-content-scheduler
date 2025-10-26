@@ -86,6 +86,94 @@ export async function GET(
     }
 }
 
+// PATCH /api/posts/[id] - Update a specific post (partial update)
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const session = await auth.api.getSession({
+            headers: request.headers,
+        });
+
+        if (!session?.user?.id) {
+            return NextResponse.json(
+                { error: 'Authentication required' },
+                { status: 401 }
+            );
+        }
+
+        const body = await request.json();
+        const validatedData = updatePostSchema.parse(body);
+
+        const now = new Date();
+
+        // Validate scheduled date if provided
+        if (validatedData.scheduledAt) {
+            const scheduledDate = new Date(validatedData.scheduledAt);
+            if (scheduledDate <= now) {
+                return NextResponse.json(
+                    { error: 'Scheduled date must be in the future' },
+                    { status: 400 }
+                );
+            }
+        }
+
+        // If status is being changed to scheduled, scheduledAt is required
+        if (validatedData.status === 'scheduled' && !validatedData.scheduledAt && !validatedData.scheduledAt?.length) {
+            // Try to get existing scheduledAt from database
+            const existingPost = await db.query.posts.findFirst({
+                where: (posts, { and }) => and(
+                    eq(posts.id, params.id),
+                    eq(posts.userId, session.user.id)
+                ),
+                columns: { scheduledAt: true }
+            });
+
+            if (!existingPost?.scheduledAt) {
+                return NextResponse.json(
+                    { error: 'Scheduled date is required when status is scheduled' },
+                    { status: 400 }
+                );
+            }
+        }
+
+        const updatedPost = await db.update(posts)
+            .set({
+                ...validatedData,
+                scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : (validatedData.scheduledAt === null ? null : undefined),
+                updatedAt: now,
+            })
+            .where(and(
+                eq(posts.id, params.id),
+                eq(posts.userId, session.user.id)
+            ))
+            .returning();
+
+        if (updatedPost.length === 0) {
+            return NextResponse.json(
+                { error: 'Post not found or you do not have permission to update it' },
+                { status: 404 }
+            );
+        }
+
+        return NextResponse.json({ post: updatedPost[0] });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return NextResponse.json(
+                { error: 'Validation failed', details: error.errors },
+                { status: 400 }
+            );
+        }
+
+        console.error('Error updating post:', error);
+        return NextResponse.json(
+            { error: 'Failed to update post' },
+            { status: 500 }
+        );
+    }
+}
+
 // PUT /api/posts/[id] - Update a specific post
 export async function PUT(
     request: NextRequest,
