@@ -1,179 +1,166 @@
-# Backend Structure Document
-
-This document outlines the backend architecture, hosting, and infrastructure for the **codeguide-starter** project. It uses plain language so anyone can understand how the backend is set up and how it supports the application.
+# Backend Structure Document for ai-linkedin-content-scheduler
 
 ## 1. Backend Architecture
 
-- **Framework and Design Pattern**
-  - We use **Next.js API Routes** to handle all server-side logic. These routes live alongside the frontend code in the same repository, making development and deployment simpler.
-  - The backend follows a **layered pattern**:
-    1. **API Layer**: Receives requests (login, registration, data fetch).  
-    2. **Service Layer**: Contains the core business logic (user validation, password hashing).  
-    3. **Data Access Layer**: Talks to the database via a simple ORM (e.g., Prisma or TypeORM).
+This project uses a modern, server-driven architecture built on Next.js with the App Router. Here’s how it is organized and why it works well:
 
-- **Scalability**
-  - Stateless API routes can scale horizontally—new instances can spin up on demand.  
-  - We can add caching or a message queue (e.g., Redis or RabbitMQ) without changing the core code.
+- **Next.js App Router**
+  - Routes API endpoints and server-rendered pages in the same codebase.
+  - Server Components fetch data efficiently and reduce client-side overhead.
+- **Layered, Modular Design**
+  - **`app/` folder**: Contains UI pages and API route handlers.
+  - **`lib/` folder**: Houses business logic and third-party integrations (LinkedIn, AI service).
+  - **`db/` folder**: Stores database schema definitions with Drizzle ORM.
+- **TypeScript & Drizzle ORM**
+  - Type-safe models from database to front end, reducing runtime errors.
+- **better-auth Authentication**
+  - Provides secure user sign-up, sign-in, and session management out of the box.
 
-- **Maintainability**
-  - Code for each feature is grouped by route (authentication, dashboard).  
-  - A service layer separates complex logic from request handling.
+This setup supports:
 
-- **Performance**
-  - Lightweight Node.js handlers keep response times low.  
-  - Future use of database connection pooling and Redis for caching repeated queries.
+- **Scalability**: API routes run as serverless functions on Vercel, auto-scaling to handle traffic.
+- **Maintainability**: Separation of concerns makes it easy to update or replace modules (e.g., swap AI provider).
+- **Performance**: Server Components handle data fetching on the server, reducing client bundle sizes.
 
 ## 2. Database Management
 
-- **Database Choice**
-  - We recommend **PostgreSQL** for structured data and reliable transactions.  
-  - In-memory caching can be added later with **Redis** for session tokens or frequently read data.
+We use PostgreSQL for relational data and Drizzle ORM for schema management:
 
-- **Data Storage and Access**
-  - Use an ORM like **Prisma** or **TypeORM** to map JavaScript/TypeScript objects to database tables.
-  - Connection pooling ensures efficient use of database connections under load.
-  - Migrations track schema changes over time, keeping development, staging, and production in sync.
+- **Database Type**: SQL (PostgreSQL)
+- **ORM**: Drizzle ORM
+- **Key Entities**:
+  - Users and sessions (managed by better-auth)
+  - Posts (ideas, drafts, scheduled, published)
+  - LinkedIn accounts (OAuth tokens)
+  - User preferences (AI tone settings)
 
-- **Data Practices**
-  - Passwords are never stored in plain text—they are salted and hashed with **bcrypt** before saving.
-  - All outgoing data is typed and validated to prevent malformed records.
+**Data Practices:**
+
+- **Type-safe schemas**: Defined in `db/schema/`, migrations via `drizzle-kit`.
+- **Environment variables**: Database URL and credentials stored securely (.env files locally, Vercel Environment Variables in production).
+- **Data integrity**: Foreign keys enforce relationships (e.g., each post links to a user).
 
 ## 3. Database Schema
 
-### Human-Readable Format
+Below is the PostgreSQL schema in human-readable SQL. It reflects core tables for users, posts, LinkedIn accounts, and preferences.
 
-- **Users**
-  - **id**: Unique identifier  
-  - **email**: User’s email address (unique)  
-  - **password_hash**: Securely hashed password  
-  - **created_at**: Account creation timestamp
-
-- **Sessions**
-  - **id**: Unique session record  
-  - **user_id**: Links to a user  
-  - **token**: Random string for authentication  
-  - **expires_at**: When the token stops working  
-  - **created_at**: When the session was created
-
-- **DashboardItems** *(optional for dynamic data)*
-  - **id**: Unique record  
-  - **title**: Item title  
-  - **content**: Item details  
-  - **created_at**: When the item was added
-
-### SQL Schema (PostgreSQL)
 ```sql
--- Users table
+-- Users table (managed by better-auth)
 CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+  id UUID PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Sessions table
-CREATE TABLE sessions (
-  id SERIAL PRIMARY KEY,
-  user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- Posts table
+CREATE TABLE posts (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id),
+  content TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('idea','draft','scheduled','published')),
+  scheduled_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Dashboard items table
-CREATE TABLE dashboard_items (
-  id SERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  content TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- LinkedIn Accounts table
+CREATE TABLE linkedin_accounts (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id),
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-```  
+
+-- User Preferences table
+CREATE TABLE user_preferences (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id),
+  tone_of_voice TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
 
 ## 4. API Design and Endpoints
 
-- **Approach**: We follow a **RESTful** style, grouping related endpoints under `/api` directories.
+The backend exposes RESTful API routes under `app/api`. All endpoints return JSON and use Next.js Route Handlers.
 
-- **Key Endpoints**
-  - `POST /api/auth/register`  
-    • Accepts `{ email, password }`  
-    • Creates a new user and issues a session token  
-  - `POST /api/auth/login`  
-    • Accepts `{ email, password }`  
-    • Verifies credentials and returns a session token  
-  - `POST /api/auth/logout`  
-    • Invalidates the session token on the server  
-  - `GET /api/dashboard/data`  
-    • Requires a valid session  
-    • Returns user-specific data or dashboard items  
+- **Authentication**
+  - `GET  /api/auth/linkedin`  – Start LinkedIn OAuth flow.
+  - `GET  /api/auth/linkedin/callback` – Handle OAuth callback, store tokens.
 
-- **Communication**
-  - Frontend sends JSON requests; backend replies with JSON and appropriate HTTP status codes.  
-  - Protected routes check for a valid session token (in cookies or Authorization header).
+- **Posts CRUD** (`app/api/posts/route.ts`)
+  - `GET    /api/posts`         – List all user posts.
+  - `POST   /api/posts`         – Create a new post (idea or draft).
+  - `PUT    /api/posts/:id`     – Update post content, status, schedule.
+  - `DELETE /api/posts/:id`     – Remove a post.
+
+- **AI Content Generation** (`app/api/ai/generate/route.ts`)
+  - `POST /api/ai/generate`     – Send user prompt and preferences to AI, return variations.
+
+- **Cron Publishing** (`app/api/cron/publish/route.ts`)
+  - `POST /api/cron/publish`     – Find due scheduled posts and publish them to LinkedIn.
 
 ## 5. Hosting Solutions
 
-- **Cloud Provider**:  
-  - **Vercel** (recommended) offers seamless Next.js deployments, auto-scaling, and built-in CDN.  
-  - Alternatively, **Netlify** or any Node.js-capable host will work.
+This app is hosted on **Vercel**, which offers:
 
-- **Benefits**
-  - **Reliability**: Global servers and failover across regions.  
-  - **Scalability**: Auto-scale serverless functions based on traffic.  
-  - **Cost-Effectiveness**: Pay-per-use model means low cost for small projects.
+- **Serverless Functions** for API routes, scaling automatically with demand.
+- **Edge CDN** for static assets, ensuring fast global delivery.
+- **Environment Variable Management** for secure key storage.
+- **Vercel Cron Jobs** to trigger the `/api/cron/publish` endpoint on a schedule.
+
+For local development, we use **Docker & Docker Compose** to spin up a PostgreSQL instance that mirrors production.
 
 ## 6. Infrastructure Components
 
-- **Load Balancer**
-  - Provided by the hosting platform—distributes API requests across function instances.
+- **Load Balancing & Auto-Scaling**
+  - Handled by Vercel’s serverless platform—no manual setup required.
+- **Content Delivery Network (CDN)**
+  - Vercel’s built-in CDN caches static assets at the edge.
+- **Cron Scheduler**
+  - Vercel Cron Jobs call the publish endpoint at defined intervals.
+- **Local Dev Environment**
+  - Docker Compose creates containers for the database and any required services.
 
-- **CDN (Content Delivery Network)**
-  - Vercel’s global edge network caches static assets (CSS, JS, images) for faster page loads.
-
-- **Caching**
-  - **Redis** (optional) for session storage or caching dashboard queries to reduce database load.
-
-- **Object Storage**
-  - For file uploads or backups, integrate with AWS S3 or similar services.
-
-- **Message Queue**
-  - In future, use **RabbitMQ** or **Kafka** for background tasks (e.g., email notifications).
+These components work together to provide reliable performance and a smooth user experience.
 
 ## 7. Security Measures
 
 - **Authentication & Authorization**
-  - Passwords hashed with **bcrypt** and salted.  
-  - Session tokens stored in secure, HttpOnly cookies or Authorization headers.  
-  - Protected endpoints verify tokens before proceeding.
-
-- **Data Encryption**
-  - **HTTPS/TLS** encrypts data in transit.  
-  - Database connections use SSL to encrypt data between the app and the database.
-
-- **Input Validation**
-  - Every incoming request is validated (e.g., valid email format, password length) to prevent SQL injection or other attacks.
-
-- **Web Security Best Practices**
-  - Enable **CORS** policies to limit allowed origins.  
-  - Use **CSRF tokens** or same-site cookies to prevent cross-site requests.  
-  - Set secure headers with **Helmet** or a similar middleware.
+  - `better-auth` library for secure user sessions and route protection.
+  - Role-based access enforced in API route handlers (each user only sees their own data).
+- **OAuth 2.0**
+  - Secure LinkedIn token exchange and storage.
+- **Data Encryption & Secrets Management**
+  - Environment variables for API keys and DB credentials.
+  - HTTPS enforced by Vercel for all traffic.
+- **Input Validation & Error Handling**
+  - Comprehensive try/catch around external API calls (AI, LinkedIn).
+  - Sanitization of user input before database writes.
 
 ## 8. Monitoring and Maintenance
 
-- **Performance Monitoring**
-  - Integrate **Sentry** or **LogRocket** for real-time crash reporting and performance tracing.  
-  - Use Vercel’s built-in analytics to track request latencies and error rates.
-
-- **Logging**
-  - Structured logs (JSON) for all API requests and errors, shipped to a log management service like **Datadog** or **Logflare**.
-
+- **Logging & Error Tracking**
+  - Vercel provides request logs and error reports in its dashboard.
+  - Optionally integrate a third-party tool (e.g., Sentry) for deeper insights.
 - **Health Checks**
-  - Define a `/health` endpoint that returns a 200 status if the service is up and the database is reachable.
-
-- **Maintenance Strategies**
-  - Automated migrations run on deploy to keep the database schema up to date.  
-  - Scheduled dependency audits and security scans (e.g., `npm audit`).
-  - Regular backups of the database (daily or weekly depending on usage).
+  - Monitor response times and error rates via Vercel Analytics.
+- **Database Migrations**
+  - Use `drizzle-kit` to run and track schema changes over time.
+- **Dependency Updates**
+  - Keep Next.js, Drizzle ORM, and authentication libraries up to date.
 
 ## 9. Conclusion and Overall Backend Summary
 
-The backend for **codeguide-starter** is built on Next.js API Routes and Node.js, paired with PostgreSQL for data and optional Redis for caching. It follows a clear layered architecture that keeps code easy to maintain and extend. With RESTful endpoints for authentication and data, secure practices like password hashing and HTTPS, and hosting on Vercel for scalability and global performance, this setup meets the project’s goals for a fast, secure, and developer-friendly foundation. Future enhancements—such as background job queues, advanced monitoring, or richer data models—can be added without disrupting the core structure.
+The `ai-linkedin-content-scheduler` backend combines a serverless Next.js App Router setup with PostgreSQL and Drizzle ORM to deliver a scalable, maintainable, and high-performance foundation. Key features include:
+
+- Robust user authentication with `better-auth`.
+- A clean, layered code structure separating UI, business logic, and data.
+- RESTful API endpoints for posts management, AI content generation, and scheduled publishing.
+- Hosting on Vercel with built-in scaling, CDN, and cron support.
+- Strong security and monitoring practices to protect data and ensure reliability.
+
+This architecture aligns perfectly with the goal of building an AI-powered LinkedIn content scheduler—providing a solid, type-safe, and production-ready backbone so you can focus on delivering core AI and scheduling features.
